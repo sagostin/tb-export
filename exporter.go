@@ -42,7 +42,7 @@ func (e *Exporter) BuildDescriptions() {
 	for _, i := range clFields {
 		log.Infof("Adding CallLeg field: %s", i)
 		newDesc := prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", i),
+			prometheus.BuildFQName(namespace, "status", i),
 			fmt.Sprintf("CallLeg field: %s", i),
 			labels, nil,
 		)
@@ -114,7 +114,7 @@ func (e *Exporter) BuildDescriptions() {
 			log.Infof("Adding NAP field: %s %s", nap, i)
 			newDesc := prometheus.NewDesc(
 				// subsystem: "_" + nap + "_"
-				prometheus.BuildFQName(namespace, "", i),
+				prometheus.BuildFQName(namespace, "nap", i),
 				fmt.Sprintf("NAP field: %s", i),
 				labels, nil,
 			)
