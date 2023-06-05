@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -177,9 +178,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		field := val.Field(i)
 		fieldName := val.Type().Field(i).Tag.Get("json")
 		if field.Kind() == reflect.Int {
-			ch <- prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, float64(field.Int()), e.id)
+			ch <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, float64(field.Int()), e.id))
 		} else if field.Kind() == reflect.Float64 {
-			ch <- prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, field.Float(), e.id)
+			ch <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, field.Float(), e.id))
 		}
 	}
 
@@ -220,10 +221,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 				if field.Kind() == reflect.Int {
 					//log.Infoln("NAP field: ", n, fieldName)
 					//e.desc[n+"-"+fieldName]
-					cCh <- prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, float64(field.Int()), n, e.id)
+					cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, float64(field.Int()), n, e.id))
 				} else if field.Kind() == reflect.Float64 {
 					//log.Infoln("NAP field: ", n, fieldName)
-					cCh <- prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, field.Float(), n, e.id)
+					cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, field.Float(), n, e.id))
 				} else {
 					log.Errorf("Unknown field type: %s", fieldName)
 				}
