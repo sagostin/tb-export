@@ -36,13 +36,15 @@ func (e *Exporter) BuildDescriptions() {
 		fields = append(fields, val.Type().Field(i).Tag.Get("json"))
 	}
 
+	labels := []string{"id"}
+
 	clFields := fields
 	for _, i := range clFields {
 		log.Infof("Adding CallLeg field: %s", i)
 		newDesc := prometheus.NewDesc(
-			prometheus.BuildFQName(namespace+"_"+e.id, "", i),
+			prometheus.BuildFQName(namespace, "", i),
 			fmt.Sprintf("CallLeg field: %s", i),
-			nil, nil,
+			labels, nil,
 		)
 
 		// for individual nap fields we will want to add a nap label before the field name
@@ -58,6 +60,15 @@ func (e *Exporter) BuildDescriptions() {
 	if err != nil {
 		log.Errorf("Can't query Service API: %v", err)
 		return
+	}
+
+	// cycle through naps, and build list of nap names without any blank ones
+	var napNames []string
+
+	for _, nap := range naps {
+		if nap != "" {
+			napNames = append(napNames, nap)
+		}
 	}
 
 	// cycle through naps, and get nap statistics
@@ -85,6 +96,12 @@ func (e *Exporter) BuildDescriptions() {
 
 		nFields := napFields
 		for _, i := range nFields {
+			_, ok := metricDesc[i]
+			// If the key exists
+			if ok {
+				continue
+			}
+
 			if nap == "" {
 				log.Errorf("Nap is empty, skipping")
 				continue
@@ -92,18 +109,22 @@ func (e *Exporter) BuildDescriptions() {
 
 			// todo recursively go through each nap field and go into the individual structs and get those fields as well
 
+			labels := []string{"nap", "id"}
+
 			log.Infof("Adding NAP field: %s %s", nap, i)
 			newDesc := prometheus.NewDesc(
-				prometheus.BuildFQName(namespace+"_"+e.id, "", i),
-				fmt.Sprintf("NAP field: %s %s", nap, i),
-				nil, nil,
+				// subsystem: "_" + nap + "_"
+				prometheus.BuildFQName(namespace, "", i),
+				fmt.Sprintf("NAP field: %s", i),
+				labels, nil,
 			)
 
 			// for individual nap fields we will want to add a nap label before the field name
-			metricDesc[nap+"-"+i] = newDesc
+			// metricDesc[nap+"-"+i] = newDesc
+			metricDesc[i] = newDesc
 		}
 
-		// some of the fields are structs inside of structs, how to navigate this?
+		// some of the fields are structs inside of  structs, how to navigate this?
 		// todo cycle through naps, get fields, and build according to nap name for later use/metrics calculations
 
 		/*log.Infoln(napStatus.UsagePercent)*/
@@ -156,9 +177,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		field := val.Field(i)
 		fieldName := val.Type().Field(i).Tag.Get("json")
 		if field.Kind() == reflect.Int {
-			ch <- prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, float64(field.Int()))
+			ch <- prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, float64(field.Int()), e.id)
 		} else if field.Kind() == reflect.Float64 {
-			ch <- prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, field.Float())
+			ch <- prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, field.Float(), e.id)
 		}
 	}
 
@@ -197,11 +218,12 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 				// remove omitempty from json tag
 				fieldName := strings.Replace(nVal.Type().Field(i).Tag.Get("json"), ",omitempty", "", -1)
 				if field.Kind() == reflect.Int {
-					log.Infoln("NAP field: ", n, fieldName)
-					cCh <- prometheus.MustNewConstMetric(e.desc[n+"-"+fieldName], prometheus.GaugeValue, float64(field.Int()), n)
+					//log.Infoln("NAP field: ", n, fieldName)
+					//e.desc[n+"-"+fieldName]
+					cCh <- prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, float64(field.Int()), n, e.id)
 				} else if field.Kind() == reflect.Float64 {
-					log.Infoln("NAP field: ", n, fieldName)
-					cCh <- prometheus.MustNewConstMetric(e.desc[n+"-"+fieldName], prometheus.GaugeValue, field.Float(), n)
+					//log.Infoln("NAP field: ", n, fieldName)
+					cCh <- prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, field.Float(), n, e.id)
 				} else {
 					log.Errorf("Unknown field type: %s", fieldName)
 				}
@@ -211,4 +233,5 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		// when that func is complete, had it send to channel, and same for the others
 	}
 	wg.Wait()
+	log.Infoln("Done collecting metrics")
 }
