@@ -6,10 +6,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/version"
+	"github.com/sagostin/tbgo/sbc"
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"os"
-	"tb-exporter/sbc"
 )
 
 var (
@@ -70,7 +70,7 @@ func main() {
 	tbId := *tbIdentifier
 
 	// create new exporter
-	e, err := NewExporter(client, tbId)
+	e, err := NewExporter(client, tbId, tbConfig)
 	if err != nil {
 		fmt.Println("Error initializing Service API exporter.")
 		os.Exit(1)

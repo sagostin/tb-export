@@ -16,6 +16,8 @@ func (e *Exporter) BuildDescriptions() {
 	var metricDesc = make(map[string]*prometheus.Desc, 0)
 
 	log.Info("Loading fields for CallLeg status.")
+
+	// general status metric fields
 	status, err := e.client.TBStatus().GetStatus()
 	if err != nil {
 		log.Errorf("Can't query Service API: %v", err)
@@ -44,6 +46,26 @@ func (e *Exporter) BuildDescriptions() {
 		metricDesc[i] = newDesc
 	}
 
+	// get nap names, and build metric descriptions for them as well
+	// get naps, and load individual statistics
+	naps, err := e.client.TBNaps().GetNames(e.config)
+	if err != nil {
+		log.Errorf("Can't query Service API: %v", err)
+		return
+	}
+	// cycle through naps, and get nap statistics
+	for _, nap := range naps {
+		napStatus, err := e.client.TBNaps().GetNapStatus(e.config, nap)
+		if err != nil {
+			return
+		}
+
+		// todo cycle through naps, get fields, and build according to nap name for later use/metrics calculations
+
+		log.Infoln(napStatus.UsagePercent)
+	}
+
+	// update exporter descriptions w/ metrics map
 	e.desc = metricDesc
 }
 
@@ -51,14 +73,16 @@ type Exporter struct {
 	client sbc.Client
 	apiUri string
 	id     string
+	config string
 	desc   map[string]*prometheus.Desc
 }
 
-func NewExporter(c sbc.Client, id string) (*Exporter, error) {
+func NewExporter(c sbc.Client, id string, config string) (*Exporter, error) {
 
 	var e = &Exporter{
 		client: c,
 		id:     id,
+		config: config,
 	}
 
 	e.BuildDescriptions()
@@ -74,6 +98,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
+	// get status
 	status, err := e.client.TBStatus().GetStatus()
 
 	if err != nil {
@@ -93,14 +118,19 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	//ch <- prometheus.MustNewConstMetric(e.desc["outgoing_legs"], prometheus.GaugeValue, float64(status.CallLegs.OutgoingLegs))
-
-	/*napStatus, err := e.client.TBNaps().GetNapStatus("Active Config", "pbx_TopsMX")
+	// get naps, and load individual statistics
+	naps, err := e.client.TBNaps().GetNames(e.config)
 	if err != nil {
-		log.Error(err)
+		log.Errorf("Can't query Service API: %v", err)
 		return
 	}
+	// cycle through naps, and get nap statistics
+	for _, nap := range naps {
+		napStatus, err := e.client.TBNaps().GetNapStatus(e.config, nap)
+		if err != nil {
+			return
+		}
 
-	ch <- prometheus.MustNewConstMetric(napAsrTotalCallCnt, prometheus.GaugeValue, float64(napStatus.AsrStatsIncomingStruct.TotalAnsweredCallCnt))
-	*/
+		log.Infoln(napStatus.UsagePercent)
+	}
 }
