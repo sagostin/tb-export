@@ -174,6 +174,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			continue
 		}
 
+		// cycle through the naps, then initialize a go func for each one running in the background,
+		// when that func is complete, had it send to channel, and same for the others
+
 		napStatus, err := e.client.TBNaps().GetNapStatus(e.config, nap)
 		if err != nil {
 			log.Errorf("Can't query Service API: %v", err)
