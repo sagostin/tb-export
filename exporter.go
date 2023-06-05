@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 const (
@@ -167,6 +168,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		log.Errorf("Can't query Service API: %v", err)
 		return
 	}
+
+	var wg sync.WaitGroup
+
 	// cycle through naps, and get nap statistics
 	for _, nap := range naps {
 		if nap == "" {
@@ -174,33 +178,37 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			continue
 		}
 
+		go func(cCh chan<- prometheus.Metric, n string, client sbc.Client, config string) {
+			wg.Add(1)
+			defer wg.Done()
+			napStatus, err := client.TBNaps().GetNapStatus(config, n)
+			if err != nil {
+				log.Errorf("Can't query Service API: %v", err)
+				return
+			}
+			var nStatus sbc.NapStatus
+			nStatus = *napStatus
+
+			nVal := reflect.ValueOf(nStatus)
+
+			for i := 0; i < nVal.Type().NumField(); i++ {
+				field := nVal.Field(i)
+
+				// remove omitempty from json tag
+				fieldName := strings.Replace(nVal.Type().Field(i).Tag.Get("json"), ",omitempty", "", -1)
+				if field.Kind() == reflect.Int {
+					log.Infoln("NAP field: ", n, fieldName)
+					cCh <- prometheus.MustNewConstMetric(e.desc[n+"-"+fieldName], prometheus.GaugeValue, float64(field.Int()))
+				} else if field.Kind() == reflect.Float64 {
+					log.Infoln("NAP field: ", n, fieldName)
+					cCh <- prometheus.MustNewConstMetric(e.desc[n+"-"+fieldName], prometheus.GaugeValue, field.Float())
+				} else {
+					log.Errorf("Unknown field type: %s", fieldName)
+				}
+			}
+		}(ch, nap, e.client, e.config)
 		// cycle through the naps, then initialize a go func for each one running in the background,
 		// when that func is complete, had it send to channel, and same for the others
-
-		napStatus, err := e.client.TBNaps().GetNapStatus(e.config, nap)
-		if err != nil {
-			log.Errorf("Can't query Service API: %v", err)
-			continue
-		}
-		var nStatus sbc.NapStatus
-		nStatus = *napStatus
-
-		nVal := reflect.ValueOf(nStatus)
-
-		for i := 0; i < nVal.Type().NumField(); i++ {
-			field := nVal.Field(i)
-
-			// remove omitempty from json tag
-			fieldName := strings.Replace(nVal.Type().Field(i).Tag.Get("json"), ",omitempty", "", -1)
-			if field.Kind() == reflect.Int {
-				log.Infoln("NAP field: ", nap, fieldName)
-				ch <- prometheus.MustNewConstMetric(e.desc[nap+"-"+fieldName], prometheus.GaugeValue, float64(field.Int()))
-			} else if field.Kind() == reflect.Float64 {
-				log.Infoln("NAP field: ", nap, fieldName)
-				ch <- prometheus.MustNewConstMetric(e.desc[nap+"-"+fieldName], prometheus.GaugeValue, field.Float())
-			} else {
-				log.Errorf("Unknown field type: %s", fieldName)
-			}
-		}
 	}
+	wg.Wait()
 }
