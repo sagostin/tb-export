@@ -94,7 +94,7 @@ func (e *Exporter) BuildDescriptions() {
 
 			log.Infof("Adding NAP field: %s %s", nap, i)
 			newDesc := prometheus.NewDesc(
-				prometheus.BuildFQName(namespace+"_"+e.id, "_"+nap+"_", i),
+				prometheus.BuildFQName(namespace+"_"+e.id, "", i),
 				fmt.Sprintf("NAP field: %s %s", nap, i),
 				nil, nil,
 			)
@@ -198,10 +198,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 				fieldName := strings.Replace(nVal.Type().Field(i).Tag.Get("json"), ",omitempty", "", -1)
 				if field.Kind() == reflect.Int {
 					log.Infoln("NAP field: ", n, fieldName)
-					cCh <- prometheus.MustNewConstMetric(e.desc[n+"-"+fieldName], prometheus.GaugeValue, float64(field.Int()))
+					cCh <- prometheus.MustNewConstMetric(e.desc[n+"-"+fieldName], prometheus.GaugeValue, float64(field.Int()), n)
 				} else if field.Kind() == reflect.Float64 {
 					log.Infoln("NAP field: ", n, fieldName)
-					cCh <- prometheus.MustNewConstMetric(e.desc[n+"-"+fieldName], prometheus.GaugeValue, field.Float())
+					cCh <- prometheus.MustNewConstMetric(e.desc[n+"-"+fieldName], prometheus.GaugeValue, field.Float(), n)
 				} else {
 					log.Errorf("Unknown field type: %s", fieldName)
 				}
