@@ -6,6 +6,7 @@ import (
 	"github.com/sagostin/tbgo/sbc"
 	log "github.com/sirupsen/logrus"
 	"reflect"
+	"strings"
 )
 
 const (
@@ -13,6 +14,7 @@ const (
 )
 
 func (e *Exporter) BuildDescriptions() {
+	// build map for descriptions that is limitless >:) (not really)
 	var metricDesc = make(map[string]*prometheus.Desc, 0)
 
 	log.Info("Loading fields for CallLeg status.")
@@ -29,7 +31,7 @@ func (e *Exporter) BuildDescriptions() {
 	var fields []string
 
 	for i := 0; i < val.Type().NumField(); i++ {
-		fmt.Println(val.Type().Field(i).Tag.Get("json"))
+		//fmt.Println(val.Type().Field(i).Tag.Get("json"))
 		fields = append(fields, val.Type().Field(i).Tag.Get("json"))
 	}
 
@@ -46,6 +48,9 @@ func (e *Exporter) BuildDescriptions() {
 		metricDesc[i] = newDesc
 	}
 
+	// ------ ^ that is the general status metric fields
+	// below is the ones for the individual naps
+
 	// get nap names, and build metric descriptions for them as well
 	// get naps, and load individual statistics
 	naps, err := e.client.TBNaps().GetNames(e.config)
@@ -53,16 +58,54 @@ func (e *Exporter) BuildDescriptions() {
 		log.Errorf("Can't query Service API: %v", err)
 		return
 	}
+
 	// cycle through naps, and get nap statistics
 	for _, nap := range naps {
-		napStatus, err := e.client.TBNaps().GetNapStatus(e.config, nap)
+		/*napStatus, err := e.client.TBNaps().GetNapStatus(e.config, nap)
 		if err != nil {
+			log.Errorf("Can't query Service API: %v", err)
 			return
 		}
 
+		var nStatus sbc.NapStatus
+		nStatus = *napStatus*/
+
+		tempNapStatusFormat := sbc.NapStatus{}
+
+		valFirst := reflect.ValueOf(tempNapStatusFormat)
+
+		var napFields []string
+
+		for i := 0; i < valFirst.Type().NumField(); i++ {
+			//fmt.Println(valFirst.Type().Field(i).Tag.Get("json"))
+			nF := strings.Replace(valFirst.Type().Field(i).Tag.Get("json"), ",omitempty", "", -1)
+			napFields = append(napFields, nF)
+		}
+
+		nFields := napFields
+		for _, i := range nFields {
+			if nap == "" {
+				log.Errorf("Nap is empty, skipping")
+				continue
+			}
+
+			// todo recursively go through each nap field and go into the individual structs and get those fields as well
+
+			log.Infof("Adding NAP field: %s %s", nap, i)
+			newDesc := prometheus.NewDesc(
+				prometheus.BuildFQName(namespace+"_"+e.id, "_"+nap+"_", i),
+				fmt.Sprintf("NAP field: %s %s", nap, i),
+				nil, nil,
+			)
+
+			// for individual nap fields we will want to add a nap label before the field name
+			metricDesc[nap+"-"+i] = newDesc
+		}
+
+		// some of the fields are structs inside of structs, how to navigate this?
 		// todo cycle through naps, get fields, and build according to nap name for later use/metrics calculations
 
-		log.Infoln(napStatus.UsagePercent)
+		/*log.Infoln(napStatus.UsagePercent)*/
 	}
 
 	// update exporter descriptions w/ metrics map
@@ -126,11 +169,35 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	}
 	// cycle through naps, and get nap statistics
 	for _, nap := range naps {
-		napStatus, err := e.client.TBNaps().GetNapStatus(e.config, nap)
-		if err != nil {
-			return
+		if nap == "" {
+			log.Infoln("Nap is empty, skipping")
+			continue
 		}
 
-		log.Infoln(napStatus.UsagePercent)
+		napStatus, err := e.client.TBNaps().GetNapStatus(e.config, nap)
+		if err != nil {
+			log.Errorf("Can't query Service API: %v", err)
+			continue
+		}
+		var nStatus sbc.NapStatus
+		nStatus = *napStatus
+
+		nVal := reflect.ValueOf(nStatus)
+
+		for i := 0; i < nVal.Type().NumField(); i++ {
+			field := nVal.Field(i)
+
+			// remove omitempty from json tag
+			fieldName := strings.Replace(nVal.Type().Field(i).Tag.Get("json"), ",omitempty", "", -1)
+			if field.Kind() == reflect.Int {
+				log.Infoln("NAP field: ", nap, fieldName)
+				ch <- prometheus.MustNewConstMetric(e.desc[nap+"-"+fieldName], prometheus.GaugeValue, float64(field.Int()))
+			} else if field.Kind() == reflect.Float64 {
+				log.Infoln("NAP field: ", nap, fieldName)
+				ch <- prometheus.MustNewConstMetric(e.desc[nap+"-"+fieldName], prometheus.GaugeValue, field.Float())
+			} else {
+				log.Errorf("Unknown field type: %s", fieldName)
+			}
+		}
 	}
 }

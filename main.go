@@ -57,6 +57,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *tbConfig == "" {
+		fmt.Fprintln(os.Stderr, "Please provide a config for TelcoBridges API")
+		os.Exit(1)
+	}
+
 	log.Infoln("Starting Service API exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
 
@@ -68,9 +73,10 @@ func main() {
 	client := sbc.NewClient(config)
 
 	tbId := *tbIdentifier
+	tbConf := *tbConfig
 
 	// create new exporter
-	e, err := NewExporter(client, tbId, tbConfig)
+	e, err := NewExporter(client, tbId, tbConf)
 	if err != nil {
 		fmt.Println("Error initializing Service API exporter.")
 		os.Exit(1)

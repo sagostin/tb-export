@@ -6,7 +6,7 @@ require (
 	github.com/gocarina/gocsv v0.0.0-20230513223533-9ddd7fd60602
 	github.com/prometheus/client_golang v1.15.1
 	github.com/prometheus/common v0.42.0
-	github.com/sagostin/tbgo v0.0.0-20230602182828-646a826df3d0
+	github.com/sagostin/tbgo v0.0.0-20230603013522-30472697ff51
 	github.com/sirupsen/logrus v1.9.2
 )
 
