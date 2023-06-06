@@ -1,15 +1,12 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sagostin/tbgo/sbc"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/time/rate"
 	"reflect"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -204,7 +201,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	// Create a rate limiter
+	/*// Create a rate limiter
 	limiter := rate.NewLimiter(rate.Limit(maxRequests), burst)
 
 	// todo make this more efficient
@@ -272,5 +269,5 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		// when that func is complete, had it send to channel, and same for the others
 	}
 	wg.Wait()
-	log.Infoln("Done collecting metrics")
+	log.Infoln("Done collecting metrics")*/
 }
