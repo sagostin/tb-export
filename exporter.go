@@ -98,7 +98,7 @@ func (e *Exporter) BuildDescriptions() {
 				for j := 0; j < valFirst.Type().Field(i).Type.NumField(); j++ {
 					//fmt.Println("Struct: ", valFirst.Type().Field(i).Type.Field(j).Tag.Get("json"))
 					nF2 := strings.Replace(valFirst.Type().Field(i).Type.Field(j).Tag.Get("json"), ",omitempty", "", -1)
-					napFields = append(napFields, nF1+"-"+nF2)
+					napFields = append(napFields, nF1+"__"+nF2)
 				}
 				continue
 			} else {
@@ -242,9 +242,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 						field2 := field.Field(i2)
 						fieldName2 := field.Type().Field(i2).Tag.Get("json")
 						if field2.Kind() == reflect.Int {
-							cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName+"-"+fieldName2], prometheus.GaugeValue, float64(field2.Int()), n, e.id))
+							cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName+"__"+fieldName2], prometheus.GaugeValue, float64(field2.Int()), n, e.id))
 						} else if field2.Kind() == reflect.Float64 {
-							cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName+"-"+fieldName2], prometheus.GaugeValue, field2.Float(), n, e.id))
+							cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName+"__"+fieldName2], prometheus.GaugeValue, field2.Float(), n, e.id))
 						}
 					}
 				} else {
