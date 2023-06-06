@@ -246,14 +246,14 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 				// remove omitempty from json tag
 				fieldName := strings.Replace(nVal.Type().Field(i).Tag.Get("json"), ",omitempty", "", -1)
 				if field.Kind() == reflect.Int {
-					//log.Infoln("NAP field: ", n, fieldName)
+					log.Infoln("NAP field: ", n, fieldName)
 					//e.desc[n+"-"+fieldName]
 					cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, float64(field.Int()), n, e.id))
 				} else if field.Kind() == reflect.Float64 {
-					//log.Infoln("NAP field: ", n, fieldName)
+					log.Infoln("NAP field: ", n, fieldName)
 					cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, field.Float(), n, e.id))
 				} else if field.Kind() == reflect.Struct {
-					//log.Infoln("NAP field: ", n, fieldName)
+					log.Infoln("NAP field: ", n, fieldName)
 					for i2 := 0; i2 < field.NumField(); i++ {
 						field2 := field.Field(i2)
 						fieldName2 := field.Type().Field(i2).Tag.Get("json")
