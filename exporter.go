@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sagostin/tbgo/sbc"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 	"reflect"
 	"strings"
 	"sync"
@@ -174,6 +176,13 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	}
 }
 
+// Define the rate limit values
+const (
+	maxRequests = 10                     // Maximum number of requests allowed per second
+	burst       = 5                      // Maximum number of requests allowed to burst
+	minDelay    = 100 * time.Millisecond // Minimum delay between requests
+)
+
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// get status
 	status, err := e.client.TBStatus().GetStatus()
@@ -195,19 +204,27 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
+	// Create a rate limiter
+	limiter := rate.NewLimiter(rate.Limit(maxRequests), burst)
+
+	// todo make this more efficient
 	// get naps, and load individual statistics
 	naps, err := e.client.TBNaps().GetNames(e.config)
 	if err != nil {
 		log.Errorf("Can't query Service API: %v", err)
 		return
 	}
-
 	var wg sync.WaitGroup
-
-	// cycle through naps, and get nap statistics
 	for _, nap := range naps {
 		if nap == "" {
 			log.Infoln("Nap is empty, skipping")
+			continue
+		}
+
+		// Apply rate limiting before making each API request
+		if err := limiter.Wait(context.Background()); err != nil {
+			log.Errorf("Rate limit exceeded: %v", err)
+			time.Sleep(minDelay) // Wait for the minimum delay before retrying
 			continue
 		}
 
