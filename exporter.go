@@ -227,9 +227,8 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			time.Sleep(minDelay) // Wait for the minimum delay before retrying
 			continue
 		}
-
+		wg.Add(1)
 		go func(cCh chan<- prometheus.Metric, n string, client sbc.Client, config string) {
-			wg.Add(1)
 			defer wg.Done()
 			napStatus, err := client.TBNaps().GetNapStatus(config, n)
 			if err != nil {
