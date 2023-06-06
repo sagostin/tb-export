@@ -178,9 +178,9 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 
 // Define the rate limit values
 const (
-	maxRequests = 10                     // Maximum number of requests allowed per second
+	maxRequests = 3                      // Maximum number of requests allowed per second
 	burst       = 5                      // Maximum number of requests allowed to burst
-	minDelay    = 100 * time.Millisecond // Minimum delay between requests
+	minDelay    = 750 * time.Millisecond // Minimum delay between requests
 )
 
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
