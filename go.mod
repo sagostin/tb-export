@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/prometheus/client_golang v1.15.1
 	github.com/prometheus/common v0.42.0
-	github.com/sagostin/tbgo v0.0.0-20230603013522-30472697ff51
+	github.com/sagostin/tbgo v0.0.0-20230605195543-cd9c0977269f
 	github.com/sirupsen/logrus v1.9.2
 	golang.org/x/time v0.3.0
 )

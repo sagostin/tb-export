@@ -52,6 +52,7 @@ const (
 	napBeginning   = "^\\w*:\\/nap:(\\w*)$"
 	napValueNormal = "^\\s{3}-\\s(\\w*)\\s*(\\w*)\\s*$"
 	napValueStruct = "^\\s{5}\\|-\\s(.*)\\s*(\\w*)\\s*$*/"
+	napStructTitle = "^\\s{3}-\\s(\\w*)\\s*"
 )
 
 func GetStatusNAP(cli TbCliStatus) map[string]sbc.NapStatus {
@@ -83,25 +84,70 @@ func GetStatusNAP(cli TbCliStatus) map[string]sbc.NapStatus {
 		log.Errorf(err.Error())
 		return nil
 	}
+	rNapStructTitle, err := regexp.Compile(napStructTitle)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil
+	}
+
+	napStatuses := make(map[string]sbc.NapStatus)
+	var currentStruct string
+	var currentNAP string
 
 	// keep track of the previous line processed, ignore if it was blank, as well as keep the line number??
-
 	lines := strings.Split(string(out), "\n")
 	for _, l := range lines {
-		// increment for each line, if the line contains the begining of the nap section, then we know that the next line is the nap name
-		if rNapBeginning.MatchString(l) {
+
+		// if the line contains "struct" we should be able to assume that we are now starting a struct within the status
+		// for a nap, we will need to build and reflect onto that nap based on the provided lines
+
+		if strings.Contains(l, "struct") {
+			if currentNAP == "" {
+				log.Errorf("Current NAP is empty, cannot process struct")
+				continue
+			}
+			if rNapStructTitle.MatchString(l) {
+				log.Infoln("Found struct, entering struct mode")
+				currentStruct = rNapStructTitle.FindAllStringSubmatch(l, -1)[0][1]
+				continue
+			} else {
+				log.Fatal("Found struct, but did not match struct title, exiting")
+			}
+			// mark it as entered the struct
+			// get the map name from the
+		} else if currentStruct != "" && rNapValueStruct.MatchString(l) {
+			// reflect based on current struct, to parse the next data, and append to built struct
+		} else if rNapBeginning.MatchString(l) {
+
+			// increment for each line, if the line contains the beginning of the nap section, then we know that the next line is the nap name
 			// it's safe to assume it's the first array inside of array as we're only processing a single line
 
 			// find the nap name, after we've confirmed the line matches
 			napName := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][1]
 
+			_, ok := napStatuses[napName]
+			// If the key exists
+			if !ok {
+				newNapStatus := sbc.NapStatus{}
+				napStatuses[napName] = newNapStatus
+				currentNAP = napName
+			}
+
+			// todo
+
 			// once we've confirmed we've entered the statistics of the nap, we can start processing the lines
 			// to process the lines, we need to track the nap name, and the line number
 			// if the nap name changes and the line number was greater than before, we can update the nap name,
-			// as well as build the struct for those values as well
+			// as well as build the struct for those values as well as the nap name
 
 			// todo check if the line is empty?? or do we just skip those??
-		} else {
+		} else if rNapValueNorm.MatchString(l) {
+			// if normal values match, and it *was* in struct mode, remove struct mode and resume.
+
+			if currentNAP == "" {
+				log.Errorf("Current NAP is empty, cannot process struct")
+				continue
+			}
 			// todo
 		}
 	}

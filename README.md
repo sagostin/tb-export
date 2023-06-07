@@ -14,6 +14,9 @@ Regex to Match normal value data
 Regex to match nap struct
 ^\s{5}\|-\s(.*)\s*(\w*)\s*$\n
 
+regex to match line title of struct
+^\s{3}-\s(\w*)\s*
+
 regex values are in Multiline mode
 
 ```
