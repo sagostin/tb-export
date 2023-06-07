@@ -20,6 +20,9 @@ func (e *Exporter) BuildDescriptions() {
 
 	log.Info("Loading fields for CallLeg status.")
 
+	// todo do i even need to use this old status stuff?
+	// can i convert to use just the direct pulling from the tbstatus??
+
 	// general status metric fields
 	status, err := e.client.TBStatus().GetStatus()
 	if err != nil {
@@ -182,7 +185,7 @@ const (
 
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// get status
-	status, err := e.client.TBStatus().GetStatus()
+	/*status, err := e.client.TBStatus().GetStatus()
 
 	if err != nil {
 		log.Errorf("Can't query Service API: %v", err)
@@ -199,7 +202,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		} else if field.Kind() == reflect.Float64 {
 			ch <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, field.Float(), e.id))
 		}
-	}
+	}*/
 
 	/*// Create a rate limiter
 	limiter := rate.NewLimiter(rate.Limit(maxRequests), burst)

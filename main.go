@@ -22,6 +22,7 @@ var (
 	tbPassword    = flag.String("tb.password", "", "TelcoBridges api password")
 	tbConfig      = flag.String("tb.config", "", "TelcoBridges config")
 	tbIdentifier  = flag.String("tb.identifier", "", "TelcoBridges identifier")
+	tbGateway     = flag.String("tb.gateway", "", "TelcoBridges gateway ID")
 )
 
 func init() {
@@ -59,6 +60,11 @@ func main() {
 
 	if *tbConfig == "" {
 		fmt.Fprintln(os.Stderr, "Please provide a config for TelcoBridges API")
+		os.Exit(1)
+	}
+
+	if *tbGateway == "" {
+		fmt.Fprintln(os.Stderr, "Please provide the gateway ID for local TelcoBridges communication")
 		os.Exit(1)
 	}
 
