@@ -112,7 +112,7 @@ func main() {
 
 	for key, nap := range naps {
 		log.Info("NAP: ", key)
-		log.Warn("usage: ", nap.UsagePercent)
+		log.Warn("usage: ", nap.MosStruct.CurrentHourEgress)
 	}
 
 	// listen to requests
