@@ -5,6 +5,7 @@ import (
 	"github.com/sagostin/tbgo/sbc"
 	log "github.com/sirupsen/logrus"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -55,7 +56,7 @@ const (
 	napStructTitle = "^\\s{3}-\\s(\\w*)\\s*"
 )
 
-func GetStatusNAP(cli TbCliStatus) map[string]sbc.NapStatus {
+func GetStatusNAP(cli TbCliStatus) map[string]*sbc.NapStatus {
 	out, err := cli.runStatusCmd()
 	if err != nil {
 		log.Errorf(err.Error())
@@ -90,7 +91,8 @@ func GetStatusNAP(cli TbCliStatus) map[string]sbc.NapStatus {
 		return nil
 	}
 
-	napStatuses := make(map[string]sbc.NapStatus)
+	// store these values for later
+	napStatuses := make(map[string]*sbc.NapStatus)
 	var currentStruct string
 	var currentNAP string
 
@@ -102,6 +104,10 @@ func GetStatusNAP(cli TbCliStatus) map[string]sbc.NapStatus {
 		// for a nap, we will need to build and reflect onto that nap based on the provided lines
 
 		if strings.Contains(l, "struct") {
+			if currentStruct != "" {
+				log.Errorf("Current struct is not empty, assuming it can be overwritten")
+			}
+
 			if currentNAP == "" {
 				log.Errorf("Current NAP is empty, cannot process struct")
 				continue
@@ -117,6 +123,8 @@ func GetStatusNAP(cli TbCliStatus) map[string]sbc.NapStatus {
 			// get the map name from the
 		} else if currentStruct != "" && rNapValueStruct.MatchString(l) {
 			// reflect based on current struct, to parse the next data, and append to built struct
+			// todo build out the inside struct data
+
 		} else if rNapBeginning.MatchString(l) {
 
 			// increment for each line, if the line contains the beginning of the nap section, then we know that the next line is the nap name
@@ -125,33 +133,78 @@ func GetStatusNAP(cli TbCliStatus) map[string]sbc.NapStatus {
 			// find the nap name, after we've confirmed the line matches
 			napName := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][1]
 
-			_, ok := napStatuses[napName]
-			// If the key exists
-			if !ok {
-				newNapStatus := sbc.NapStatus{}
-				napStatuses[napName] = newNapStatus
-				currentNAP = napName
+			if currentNAP != "" && currentNAP != napName {
+				log.Errorf("Current NAP is not equal to the nap name found, completing nap and moving to next")
+
+				_, ok := napStatuses[napName]
+				// If the key exists
+				if !ok {
+					newNapStatus := &sbc.NapStatus{}
+					napStatuses[napName] = newNapStatus
+					currentNAP = napName
+				}
+				continue
+			} else {
+				_, ok := napStatuses[napName]
+				// If the key exists
+				if !ok {
+					newNapStatus := &sbc.NapStatus{}
+					napStatuses[napName] = newNapStatus
+					currentNAP = napName
+				} else {
+					log.Errorf("NAP already exists, skipping wtf??!??")
+				}
+				continue
 			}
-
-			// todo
-
-			// once we've confirmed we've entered the statistics of the nap, we can start processing the lines
-			// to process the lines, we need to track the nap name, and the line number
-			// if the nap name changes and the line number was greater than before, we can update the nap name,
-			// as well as build the struct for those values as well as the nap name
-
 			// todo check if the line is empty?? or do we just skip those??
 		} else if rNapValueNorm.MatchString(l) {
 			// if normal values match, and it *was* in struct mode, remove struct mode and resume.
-
 			if currentNAP == "" {
 				log.Errorf("Current NAP is empty, cannot process struct")
 				continue
 			}
-			// todo
+
+			if currentStruct != "" {
+				log.Warn("Found normal value, but was in struct mode, exiting struct mode")
+				currentStruct = ""
+			}
+
+			fieldName := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][1]
+			fieldValue := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][2]
+
+			status := napStatuses[currentNAP]
+			nVal := reflect.ValueOf(status).Elem()
+			tValid := nVal.FieldByName(fieldName).Kind() // check
+
+			if tValid == reflect.String {
+				nVal.FieldByName(fieldName).SetString(fieldValue)
+			} else if tValid == reflect.Int {
+				parseInt, err := strconv.ParseInt(fieldValue, 10, 64)
+				if err != nil {
+					log.Errorf(err.Error())
+					return nil
+				}
+				nVal.FieldByName(fieldName).SetInt(parseInt)
+			} else if tValid == reflect.Bool {
+				parseBool, err := strconv.ParseBool(fieldValue)
+				if err != nil {
+					log.Errorf(err.Error())
+					return nil
+				}
+				nVal.FieldByName(fieldName).SetBool(parseBool)
+			} else if tValid == reflect.Float64 {
+				float, err := strconv.ParseFloat(fieldValue, 64)
+				if err != nil {
+					log.Errorf(err.Error())
+					return nil
+				}
+				nVal.FieldByName(fieldName).SetFloat(float)
+			}
 		}
 	}
 	// todo grabs all nap statuses /nap
+
+	return napStatuses
 }
 
 func SystemStatus(gw int) {
