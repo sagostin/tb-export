@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sagostin/tbgo/sbc"
@@ -8,7 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"time"
 )
 
 const (
@@ -150,59 +150,25 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	}
 }
 
-// Define the rate limit values
-const (
-	maxRequests = 4                      // Maximum number of requests allowed per second
-	burst       = 8                      // Maximum number of requests allowed to burst
-	minDelay    = 250 * time.Millisecond // Minimum delay between requests
-)
-
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	nap, err := GetStatusNAP(e.tbCliStatus)
 	if err != nil {
 		return
 	}
+	var wg sync.WaitGroup
 
-	var wg *sync.WaitGroup
 	for k, v := range nap {
-		wg.Add(1)
-		go func(cCh chan<- prometheus.Metric, napName string, stat *sbc.NapStatus) {
-			defer wg.Done()
-			var nStatus sbc.NapStatus
-
-			nVal := reflect.ValueOf(nStatus)
-
-			for i := 0; i < nVal.Type().NumField(); i++ {
-				field := nVal.Field(i)
-
-				// remove omitempty from json tag
-				fieldName := strings.Replace(nVal.Type().Field(i).Tag.Get("json"), ",omitempty", "", -1)
-				if field.Kind() == reflect.Int {
-					log.Infoln("NAP field: ", napName, fieldName)
-					//e.desc[n+"-"+fieldName]
-					cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, float64(field.Int()), napName, e.id))
-				} else if field.Kind() == reflect.Float64 {
-					log.Infoln("NAP field: ", napName, fieldName)
-					cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName], prometheus.GaugeValue, field.Float(), napName, e.id))
-				} else if field.Kind() == reflect.Struct {
-					log.Infoln("NAP field: ", napName, fieldName)
-					for i2 := 0; i2 < field.NumField(); i++ {
-						field2 := field.Field(i2)
-						fieldName2 := field.Type().Field(i2).Tag.Get("json")
-						if field2.Kind() == reflect.Int {
-							cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName+"__"+fieldName2], prometheus.GaugeValue, float64(field2.Int()), napName, e.id))
-						} else if field2.Kind() == reflect.Float64 {
-							cCh <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.desc[fieldName+"__"+fieldName2], prometheus.GaugeValue, field2.Float(), napName, e.id))
-						}
-					}
-				} else {
-					log.Errorf("Unknown field type: %s", fieldName)
-				}
-			}
-		}(ch, k, v)
-		// cycle through the naps, then initialize a go func for each one running in the background,
-		// when that func is complete, had it send to channel, and same for the others
+		log.Warnf("NAP: %s", k)
+		marshal, err := json.Marshal(v)
+		if err != nil {
+			return
+		}
+		marshalString := string(marshal)
+		log.Warnf(marshalString)
 	}
+
+	log.Infoln("Waiting for all goroutines to finish")
+	wg.Wait()
 
 	// get status
 	/*status, err := e.client.TBStatus().GetStatus()

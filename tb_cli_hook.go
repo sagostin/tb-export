@@ -98,7 +98,7 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*sbc.NapStatus, error) {
 	// keep track of the previous line processed, ignore if it was blank, as well as keep the line number??
 	lines := strings.Split(string(out), "\n")
 	for _, l := range lines {
-		log.Warnf(l)
+		//log.Warnf(l)
 
 		// if the line contains "struct" we should be able to assume that we are now starting a struct within the status
 		// for a nap, we will need to build and reflect onto that nap based on the provided lines
@@ -242,6 +242,10 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*sbc.NapStatus, error) {
 				nVal.FieldByName(fieldName).SetFloat(float)
 			}
 		}
+
+		// todo stupid fucking reflections with updating the struct values
+
+		napStatuses[currentNAP] = st.Interface().(*sbc.NapStatus)
 	}
 	// todo grabs all nap statuses /nap
 
