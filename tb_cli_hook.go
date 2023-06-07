@@ -27,7 +27,7 @@ import (
 // and listen to the changes, this seems easier...
 
 type TbCliStatus struct {
-	Gateway     int
+	Gateway     string
 	CommandPath string
 }
 
@@ -42,7 +42,7 @@ func (cli *TbCliStatus) runStatusCmd() ([]byte, error) {
 
 	var cmd *exec.Cmd
 
-	args := []string{"-c", "tbstatus -gw " + strconv.Itoa(cli.Gateway) + " " + cli.CommandPath}
+	args := []string{"-c", "tbstatus -gw " + cli.Gateway + " " + cli.CommandPath}
 	cmd = exec.CommandContext(context.TODO(), "/bin/bash", args...)
 	out, err := cmd.CombinedOutput()
 
@@ -56,39 +56,37 @@ const (
 	napStructTitle = "^\\s{3}-\\s(\\w*)\\s*"
 )
 
-func GetStatusNAP(cli TbCliStatus) map[string]*sbc.NapStatus {
+func GetStatusNAP(cli TbCliStatus) (map[string]*sbc.NapStatus, error) {
+	cli.CommandPath = "/nap"
+
 	out, err := cli.runStatusCmd()
 	if err != nil {
-		log.Errorf(err.Error())
+		return nil, err
 	}
 
 	// check empty data??
 	if len(out) <= 0 {
-		log.Errorf(err.Error())
+		return nil, err
 	}
 
 	// precompile the regex expressions
 	rNapBeginning, err := regexp.Compile(napBeginning)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil
+		return nil, err
 	}
 
 	rNapValueNorm, err := regexp.Compile(napValueNormal)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil
+		return nil, err
 	}
 
 	rNapValueStruct, err := regexp.Compile(napValueStruct)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil
+		return nil, err
 	}
 	rNapStructTitle, err := regexp.Compile(napStructTitle)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil
+		return nil, err
 	}
 
 	// store these values for later
@@ -99,6 +97,7 @@ func GetStatusNAP(cli TbCliStatus) map[string]*sbc.NapStatus {
 	// keep track of the previous line processed, ignore if it was blank, as well as keep the line number??
 	lines := strings.Split(string(out), "\n")
 	for _, l := range lines {
+		log.Warnf(l)
 
 		// if the line contains "struct" we should be able to assume that we are now starting a struct within the status
 		// for a nap, we will need to build and reflect onto that nap based on the provided lines
@@ -117,7 +116,7 @@ func GetStatusNAP(cli TbCliStatus) map[string]*sbc.NapStatus {
 				currentStruct = rNapStructTitle.FindAllStringSubmatch(l, -1)[0][1]
 				continue
 			} else {
-				log.Fatal("Found struct, but did not match struct title, exiting")
+				return nil, err
 			}
 			// mark it as entered the struct
 			// get the map name from the
@@ -131,7 +130,7 @@ func GetStatusNAP(cli TbCliStatus) map[string]*sbc.NapStatus {
 			// it's safe to assume it's the first array inside of array as we're only processing a single line
 
 			// find the nap name, after we've confirmed the line matches
-			napName := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][1]
+			napName := rNapBeginning.FindAllStringSubmatch(l, -1)[0][1]
 
 			if currentNAP != "" && currentNAP != napName {
 				log.Errorf("Current NAP is not equal to the nap name found, completing nap and moving to next")
@@ -181,22 +180,19 @@ func GetStatusNAP(cli TbCliStatus) map[string]*sbc.NapStatus {
 			} else if tValid == reflect.Int {
 				parseInt, err := strconv.ParseInt(fieldValue, 10, 64)
 				if err != nil {
-					log.Errorf(err.Error())
-					return nil
+					return nil, err
 				}
 				nVal.FieldByName(fieldName).SetInt(parseInt)
 			} else if tValid == reflect.Bool {
 				parseBool, err := strconv.ParseBool(fieldValue)
 				if err != nil {
-					log.Errorf(err.Error())
-					return nil
+					return nil, err
 				}
 				nVal.FieldByName(fieldName).SetBool(parseBool)
 			} else if tValid == reflect.Float64 {
 				float, err := strconv.ParseFloat(fieldValue, 64)
 				if err != nil {
-					log.Errorf(err.Error())
-					return nil
+					return nil, err
 				}
 				nVal.FieldByName(fieldName).SetFloat(float)
 			}
@@ -204,7 +200,7 @@ func GetStatusNAP(cli TbCliStatus) map[string]*sbc.NapStatus {
 	}
 	// todo grabs all nap statuses /nap
 
-	return napStatuses
+	return napStatuses, nil
 }
 
 func SystemStatus(gw int) {
