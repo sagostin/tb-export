@@ -81,8 +81,12 @@ func main() {
 	tbId := *tbIdentifier
 	tbConf := *tbConfig
 
+	tbCli := TbCliStatus{
+		Gateway: *tbGateway,
+	}
+
 	// create new exporter
-	e, err := NewExporter(client, tbId, tbConf)
+	e, err := NewExporter(client, tbId, tbConf, tbCli)
 	if err != nil {
 		fmt.Println("Error initializing Service API exporter.")
 		os.Exit(1)
