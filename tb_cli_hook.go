@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"github.com/sagostin/tbgo/sbc"
 	log "github.com/sirupsen/logrus"
 	"os/exec"
@@ -123,6 +124,50 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*sbc.NapStatus, error) {
 		} else if currentStruct != "" && rNapValueStruct.MatchString(l) {
 			// reflect based on current struct, to parse the next data, and append to built struct
 			// todo build out the inside struct data
+
+			if currentNAP == "" {
+				log.Errorf("Current NAP is empty, cannot process struct")
+				continue
+			}
+
+			if currentStruct == "" {
+				return nil, errors.New("found struct data, but current struct is empty, ignoring")
+			}
+
+			fieldName := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][1]
+			fieldValue := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][2]
+
+			status := napStatuses[currentNAP]
+			sVal := reflect.ValueOf(status).Elem()
+
+			nVal := sVal.FieldByName(currentStruct)
+			if nVal.Kind() != reflect.Struct {
+				return nil, errors.New("field is not a struct, cannot parse")
+			}
+
+			tValid := nVal.FieldByName(fieldName).Kind() // check
+
+			if tValid == reflect.String {
+				nVal.FieldByName(fieldName).SetString(fieldValue)
+			} else if tValid == reflect.Int {
+				parseInt, err := strconv.ParseInt(fieldValue, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				nVal.FieldByName(fieldName).SetInt(parseInt)
+			} else if tValid == reflect.Bool {
+				parseBool, err := strconv.ParseBool(fieldValue)
+				if err != nil {
+					return nil, err
+				}
+				nVal.FieldByName(fieldName).SetBool(parseBool)
+			} else if tValid == reflect.Float64 {
+				float, err := strconv.ParseFloat(fieldValue, 64)
+				if err != nil {
+					return nil, err
+				}
+				nVal.FieldByName(fieldName).SetFloat(float)
+			}
 
 		} else if rNapBeginning.MatchString(l) {
 
