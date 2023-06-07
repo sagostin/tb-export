@@ -101,23 +101,7 @@ func main() {
 		http.Redirect(w, r, *metricsPath, http.StatusMovedPermanently)
 	})
 
-	tbGw := *tbGateway
-
 	log.Infof("Listening on %s", *listenAddress)
-	cli := TbCliStatus{
-		Gateway: tbGw,
-	}
-
-	naps, err := GetStatusNAP(cli)
-	if err != nil {
-		log.Errorf(err.Error())
-		return
-	}
-
-	for key, nap := range naps {
-		log.Info("NAP: ", key)
-		log.Warn("usage: ", nap.MosStruct.CurrentHourEgress)
-	}
 
 	// listen to requests
 	if err := http.ListenAndServe(*listenAddress, nil); err != nil {
