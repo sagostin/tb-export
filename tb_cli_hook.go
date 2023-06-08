@@ -95,12 +95,12 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 		return nil, err
 	}
 
-	var temporaryNapStatus NapStatus // used to store the current nap status
-
 	// store these values for later
 	napStatuses := make(map[string]*NapStatus)
+
 	var currentStruct string
 	var currentNAP string
+	var insideStats bool
 
 	// keep track of the previous line processed, ignore if it was blank, as well as keep the line number??
 	lines := strings.Split(string(out), "\n")
@@ -110,12 +110,8 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 			strings.Contains(l, "remote_drop_stats") ||
 			strings.Contains(l, "local_drop_stats") {
 			log.Errorf("Found drop stats, ignoring until handled correctly")
-			currentStruct = ""
-
-			napStatuses[currentNAP] = &temporaryNapStatus
-			log.Infoln("Added nap status to map")
-
-			return napStatuses, nil
+			insideStats = true
+			continue
 		}
 
 		log.Warnf(l)
@@ -124,6 +120,12 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 		// for a nap, we will need to build and reflect onto that nap based on the provided lines
 
 		if strings.Contains(l, "struct") {
+			if insideStats {
+				log.Info("Previously inside stats, changing to false, and continuing")
+				insideStats = false
+				continue
+			}
+
 			if currentStruct != "" {
 				log.Errorf("Current struct is not empty, assuming it can be overwritten")
 			}
@@ -145,6 +147,11 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 			// reflect based on current struct, to parse the next data, and append to built struct
 			// todo build out the inside struct data
 
+			if insideStats {
+				log.Info("Inside stats, ignoring fields")
+				continue
+			}
+
 			if currentNAP == "" {
 				log.Errorf("Current NAP is empty, cannot process struct")
 				continue
@@ -164,43 +171,84 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 
 			log.Infof("Found field: %s with value: %s", fieldName, fieldValue)
 
-			// todo reflect onto the struct
+			vVal := reflect.ValueOf(napStatuses[currentNAP]).Elem()
 
-			/*nVal := reflect.ValueOf(temporaryNapStatus)
-			err := updateField(fieldName, fieldValue, nVal)
-			if err != nil {
-				return nil, err
-			}*/
+			for i := 0; i < vVal.NumField(); i++ {
+				f := vVal.Type().Field(i)
+				if f.Tag.Get("json") == currentStruct {
+
+					if f.Type.Kind() == reflect.Struct {
+						// todo handle nested structs
+						log.Warnln("Found nested struct, todo handle")
+
+						nVal := vVal.Field(i)
+						for j := 0; j < nVal.NumField(); j++ {
+							field := nVal.Type().Field(j)
+							if field.Tag.Get("json") == fieldName {
+								log.Infof("Found field: %s with value: %s", fieldName, fieldValue)
+
+								if field.Type.Kind() == reflect.Int {
+									fieldValueInt, err := strconv.Atoi(fieldValue)
+									if err != nil {
+										log.Errorf("Failed to convert string to int: %s", err)
+										continue
+									}
+									nVal.Field(j).SetInt(int64(fieldValueInt))
+									break
+								} else if field.Type.Kind() == reflect.String {
+									nVal.Field(j).SetString(fieldValue)
+									break
+								} else if field.Type.Kind() == reflect.Bool {
+									fieldValueBool, err := strconv.ParseBool(fieldValue)
+									if err != nil {
+										log.Errorf("Failed to convert string to bool: %s", err)
+										continue
+									}
+									nVal.Field(j).SetBool(fieldValueBool)
+									break
+								} else if field.Type.Kind() == reflect.Float64 {
+									fieldValueFloat, err := strconv.ParseFloat(fieldValue, 64)
+									if err != nil {
+										log.Errorf("Failed to convert string to float64: %s", err)
+										continue
+									}
+									nVal.Field(j).SetFloat(fieldValueFloat)
+									break
+								} else if field.Type.Kind() == reflect.Struct {
+									log.Errorf("Found unknown type: %s", field.Type.Kind())
+									continue
+								} else {
+									log.Errorf("Found unknown type: %s", field.Type.Kind())
+									continue
+								}
+
+								break
+							}
+						}
+
+						continue
+					} else {
+						continue
+					}
+
+					log.Infof("11 - Found field: %s with value: %s", fieldName, fieldValue)
+				}
+			}
+
+			// todo reflect onto the struct
 			continue
 		} else if rNapBeginning.MatchString(l) {
-
-			// increment for each line, if the line contains the beginning of the nap section, then we know that the next line is the nap name
-			// it's safe to assume it's the first array inside of array as we're only processing a single line
-
-			// find the nap name, after we've confirmed the line matches
 			napName := rNapBeginning.FindAllStringSubmatch(l, -1)[0][1]
 
-			if currentNAP != "" && currentNAP != napName {
-				log.Errorf("Current NAP is not equal to the nap name found, completing nap and moving to next")
-
-				_, ok := napStatuses[napName]
-				// If the key exists
-				if !ok {
-					temporaryNapStatus = NapStatus{}
-					currentNAP = napName
-				}
-				continue
+			_, ok := napStatuses[napName]
+			// If the key exists
+			if !ok {
+				napStatuses[napName] = &NapStatus{}
+				currentNAP = napName
 			} else {
-				_, ok := napStatuses[napName]
-				// If the key exists
-				if !ok {
-					temporaryNapStatus = NapStatus{}
-					currentNAP = napName
-				} else {
-					log.Errorf("NAP already exists, skipping wtf??!??")
-				}
-				continue
+				log.Errorf("NAP already exists, skipping")
 			}
+			continue
 			// todo check if the line is empty?? or do we just skip those??
 		} else if rNapValueNorm.MatchString(l) {
 			// if normal values match, and it *was* in struct mode, remove struct mode and resume.
@@ -219,47 +267,58 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 
 			log.Infof("Found field: %s with value: %s", fieldName, fieldValue)
 
-			nVal := reflect.ValueOf(temporaryNapStatus)
+			nVal := reflect.ValueOf(napStatuses[currentNAP]).Elem()
 
-			err := updateField(fieldName, fieldValue, nVal)
-			if err != nil {
-				return nil, err
+			for i := 0; i < nVal.NumField(); i++ {
+				field := nVal.Type().Field(i)
+				if field.Tag.Get("json") == fieldName {
+
+					if field.Type.Kind() == reflect.Int {
+						fieldValueInt, err := strconv.Atoi(fieldValue)
+						if err != nil {
+							log.Errorf("Failed to convert string to int: %s", err)
+							continue
+						}
+						nVal.Field(i).SetInt(int64(fieldValueInt))
+						break
+					} else if field.Type.Kind() == reflect.String {
+						nVal.Field(i).SetString(fieldValue)
+						break
+					} else if field.Type.Kind() == reflect.Bool {
+						fieldValueBool, err := strconv.ParseBool(fieldValue)
+						if err != nil {
+							log.Errorf("Failed to convert string to bool: %s", err)
+							continue
+						}
+						nVal.Field(i).SetBool(fieldValueBool)
+						break
+					} else if field.Type.Kind() == reflect.Float64 {
+						fieldValueFloat, err := strconv.ParseFloat(fieldValue, 64)
+						if err != nil {
+							log.Errorf("Failed to convert string to float64: %s", err)
+							continue
+						}
+						nVal.Field(i).SetFloat(fieldValueFloat)
+						break
+					} else if field.Type.Kind() == reflect.Struct {
+						log.Errorf("Found unknown type: %s", field.Type.Kind())
+						continue
+					} else {
+						log.Errorf("Found unknown type: %s", field.Type.Kind())
+						continue
+					}
+
+					log.Infof("11 - Found field: %s with value: %s", fieldName, fieldValue)
+					nVal.Field(i).Set(reflect.ValueOf(fieldValue))
+					break
+				}
 			}
 
-			temporaryNapStatus = nVal.Interface().(NapStatus)
 			continue
 		}
-
-		napStatuses[currentNAP] = &temporaryNapStatus
 	}
 
 	return napStatuses, nil
-}
-
-func updateField(fieldName string, fieldValue string, nVal reflect.Value) error {
-	tValid := nVal.Kind()
-	if tValid == reflect.String {
-		nVal.FieldByName(fieldName).SetString(fieldValue)
-	} else if tValid == reflect.Int {
-		parseInt, err := strconv.ParseInt(fieldValue, 10, 64)
-		if err != nil {
-			return err
-		}
-		nVal.FieldByName(fieldName).SetInt(parseInt)
-	} else if tValid == reflect.Bool {
-		parseBool, err := strconv.ParseBool(fieldValue)
-		if err != nil {
-			return err
-		}
-		nVal.FieldByName(fieldName).SetBool(parseBool)
-	} else if tValid == reflect.Float64 {
-		float, err := strconv.ParseFloat(fieldValue, 64)
-		if err != nil {
-			return err
-		}
-		nVal.FieldByName(fieldName).SetFloat(float)
-	}
-	return nil
 }
 
 /*
