@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	log "github.com/sirupsen/logrus"
-	"os"
 	"os/exec"
 	"reflect"
 	"regexp"
@@ -12,20 +11,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-/*
-
-- Create a new file tb_cli_hook.go
-- First connect to the system, dump the general statistics
-- Then connect to each nap, dump the nap statistics through using the tbstatus commands
-- This will significantly reduce time complexity?!??!??!
-
-*/
-
-// todo
-// initialize the exporter to build the descriptions for the fields and be able to interpreate
-// the fucking ugly format that telcobridges outputs, and seen as i dont wanna parse the damn csv files each time
-// and listen to the changes, this seems easier...
 
 type TbCliStatus struct {
 	Gateway     string
@@ -53,22 +38,22 @@ func (cli *TbCliStatus) runStatusCmd() ([]byte, error) {
 const (
 	napBeginning   = "^\\w*:\\/nap:(\\w*)$"
 	napValueNormal = "^\\s{3}-\\s(\\w*)\\s*(\\w*)\\s*$"
-	napValueStruct = "^\\s{5}\\|-\\s(\\w*)\\s*(\\w*)\\s*$"
+	napValueStruct = "^\\s{5}\\|-\\s(\\w*)\\s*([0-9]*[.]?[0-9]+)\\s*$"
 	napStructTitle = "^\\s{3}-\\s(\\w*)\\s*$"
 )
 
 func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 	cli.CommandPath = "/nap"
 
-	/*out, err := cli.runStatusCmd()
-	if err != nil {
-		return nil, err
-	}*/
-
-	out, err := os.ReadFile("./out_test.txt")
+	out, err := cli.runStatusCmd()
 	if err != nil {
 		return nil, err
 	}
+
+	/*out, err := os.ReadFile("./out_test.txt")
+	if err != nil {
+		return nil, err
+	}*/
 
 	// check empty data??
 	if len(out) <= 0 {
