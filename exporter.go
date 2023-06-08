@@ -141,7 +141,6 @@ func NewExporter(c sbc.Client, id string, config string, status TbCliStatus) (*E
 	e.BuildDescriptions()
 
 	return e, nil
-
 }
 
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
@@ -153,6 +152,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	nap, err := GetStatusNAP(e.tbCliStatus)
 	if err != nil {
+		log.Errorf("Can't query Service API: %v", err)
 		return
 	}
 	var wg sync.WaitGroup

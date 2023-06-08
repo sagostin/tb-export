@@ -43,7 +43,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *tbApiUrl == "" {
+	/*if *tbApiUrl == "" {
 		fmt.Fprintln(os.Stderr, "Please provide a address for TelcoBridges API")
 		os.Exit(1)
 	}
@@ -61,7 +61,7 @@ func main() {
 	if *tbConfig == "" {
 		fmt.Fprintln(os.Stderr, "Please provide a config for TelcoBridges API")
 		os.Exit(1)
-	}
+	}*/
 
 	if *tbGateway == "" {
 		fmt.Fprintln(os.Stderr, "Please provide the gateway ID for local TelcoBridges communication")
