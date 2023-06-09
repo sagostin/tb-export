@@ -93,13 +93,13 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 
 		if strings.Contains(l, "local_drop_stats") ||
 			strings.Contains(l, "remote_drop_stats") ||
-			strings.Contains(l, "local_drop_stats") {
+			strings.Contains(l, "system_drop_stats") {
 			log.Errorf("Found drop stats, ignoring until handled correctly")
 			insideStats = true
 			continue
 		}
 
-		log.Warnf(l)
+		//log.Warnf(l)
 
 		// if the line contains "struct" we should be able to assume that we are now starting a struct within the status
 		// for a nap, we will need to build and reflect onto that nap based on the provided lines
@@ -149,12 +149,8 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 
 			fields := rNapValueStruct.FindAllStringSubmatch(l, -1)
 
-			log.Infoln(fields)
-
 			fieldName := fields[0][1]
 			fieldValue := fields[0][2]
-
-			log.Infof("Found field: %s with value: %s", fieldName, fieldValue)
 
 			vVal := reflect.ValueOf(napStatuses[currentNAP]).Elem()
 
@@ -164,13 +160,13 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 
 					if f.Type.Kind() == reflect.Struct {
 						// todo handle nested structs
-						log.Warnln("Found nested struct, todo handle")
+						//log.Warnln("Found nested struct, todo handle")
 
 						nVal := vVal.Field(i)
 						for j := 0; j < nVal.NumField(); j++ {
 							field := nVal.Type().Field(j)
 							if field.Tag.Get("json") == fieldName {
-								log.Infof("Found field: %s with value: %s", fieldName, fieldValue)
+								log.Infof("Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
 
 								if field.Type.Kind() == reflect.Int {
 									fieldValueInt, err := strconv.Atoi(fieldValue)
@@ -210,13 +206,12 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 								break
 							}
 						}
-
-						continue
+						break
 					} else {
 						continue
 					}
 
-					log.Infof("11 - Found field: %s with value: %s", fieldName, fieldValue)
+					log.Infof("12 - Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
 				}
 			}
 
@@ -229,10 +224,10 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 			// If the key exists
 			if !ok {
 				napStatuses[napName] = &NapStatus{}
-				currentNAP = napName
 			} else {
 				log.Errorf("NAP already exists, skipping")
 			}
+			currentNAP = napName
 			continue
 			// todo check if the line is empty?? or do we just skip those??
 		} else if rNapValueNorm.MatchString(l) {
@@ -250,7 +245,7 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 			fieldName := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][1]
 			fieldValue := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][2]
 
-			log.Infof("Found field: %s with value: %s", fieldName, fieldValue)
+			log.Infof("Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
 
 			nVal := reflect.ValueOf(napStatuses[currentNAP]).Elem()
 
@@ -293,7 +288,7 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 						continue
 					}
 
-					log.Infof("11 - Found field: %s with value: %s", fieldName, fieldValue)
+					log.Infof("11 - Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
 					nVal.Field(i).Set(reflect.ValueOf(fieldValue))
 					break
 				}
@@ -302,7 +297,6 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 			continue
 		}
 	}
-
 	return napStatuses, nil
 }
 

@@ -29,10 +29,10 @@ func (e *Exporter) BuildDescriptions() {
 		//fmt.Println(valFirst.Type().Field(i).Tag.Get("json"))
 		nF1 := strings.Replace(valFirst.Type().Field(i).Tag.Get("json"), ",omitempty", "", -1)
 		if valFirst.Type().Field(i).Type.Kind() == reflect.Struct {
-			fmt.Println("Struct 1: ", valFirst.Type().Field(i).Type)
-			fmt.Println("Struct 2: ", valFirst.Type().Field(i).Type.NumField())
+			//fmt.Println("Struct 1: ", valFirst.Type().Field(i).Type)
+			//fmt.Println("Struct 2: ", valFirst.Type().Field(i).Type.NumField())
 			for j := 0; j < valFirst.Type().Field(i).Type.NumField(); j++ {
-				fmt.Println("Struct 3: ", valFirst.Type().Field(i).Type.Field(j).Tag.Get("json"))
+				//fmt.Println("Struct 3: ", valFirst.Type().Field(i).Type.Field(j).Tag.Get("json"))
 				nF2 := strings.Replace(valFirst.Type().Field(i).Type.Field(j).Tag.Get("json"), ",omitempty", "", -1)
 				napFields = append(napFields, nF1+"__"+nF2)
 			}
@@ -126,19 +126,19 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 				// remove omitempty from json tag
 				fieldName := strings.Replace(nVal.Type().Field(i).Tag.Get("json"), ",omitempty", "", -1)
 				if field.Type.Kind() == reflect.Int {
-					log.Infoln("NAP field: ", n, fieldName)
+					//log.Infoln("NAP field: ", nap, fieldName)
 					//e.desc[n+"-"+fieldName]
 					cCh <- prometheus.NewMetricWithTimestamp(time.Now(),
 						prometheus.MustNewConstMetric(e.desc[fieldName],
 							prometheus.GaugeValue, float64(nVal.Field(i).Int()), nap, e.id))
 				} else if field.Type.Kind() == reflect.Float64 {
-					log.Infoln("NAP field: ", n, fieldName)
+					//log.Infoln("NAP field: ", nap, fieldName)
 					cCh <- prometheus.NewMetricWithTimestamp(time.Now(),
 						prometheus.MustNewConstMetric(e.desc[fieldName],
 							prometheus.GaugeValue, nVal.Field(i).Float(), nap, e.id))
 				} else if field.Type.Kind() == reflect.Struct {
-					log.Infoln("NAP field: ", n, fieldName)
-					log.Warnf("Struct: %s", fieldName)
+					//log.Infoln("NAP field: ", nap, fieldName)
+					//log.Warnf("Struct: %s", fieldName)
 					vVal := nVal.Field(i)
 					for i2 := 0; i2 < vVal.NumField(); i2++ {
 						field2 := vVal.Type().Field(i2)
@@ -152,12 +152,12 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 								prometheus.MustNewConstMetric(e.desc[fieldName+"__"+fieldName2],
 									prometheus.GaugeValue, vVal.Field(i2).Float(), nap, e.id))
 						} else {
-							log.Infoln("NAP field: ", n, fieldName, fieldName2)
+							//log.Infoln("NAP field: ", nap, fieldName, fieldName2)
 							continue
 						}
 					}
 				} else {
-					log.Errorf("Unknown field type: %s", field.Type.Kind())
+					//log.Errorf("Unknown field type: %s", field.Type.Kind())
 					continue
 				}
 			}
