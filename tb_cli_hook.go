@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	log "github.com/sirupsen/logrus"
+	"os"
 	"os/exec"
 	"reflect"
 	"regexp"
@@ -45,15 +46,15 @@ const (
 func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 	cli.CommandPath = "/nap"
 
-	out, err := cli.runStatusCmd()
-	if err != nil {
-		return nil, err
-	}
-
-	/*out, err := os.ReadFile("./out_test.txt")
+	/*out, err := cli.runStatusCmd()
 	if err != nil {
 		return nil, err
 	}*/
+
+	out, err := os.ReadFile("./out_test.txt")
+	if err != nil {
+		return nil, err
+	}
 
 	// check empty data??
 	if len(out) <= 0 {
@@ -108,7 +109,6 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 			if insideStats {
 				log.Info("Previously inside stats, changing to false, and continuing")
 				insideStats = false
-				continue
 			}
 
 			if currentStruct != "" {
