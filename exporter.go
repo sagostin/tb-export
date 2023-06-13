@@ -52,7 +52,7 @@ func (e *Exporter) BuildDescriptions() {
 
 		// todo recursively go through each nap field and go into the individual structs and get those fields as well
 
-		labels := []string{"nap", "id"}
+		labels := []string{"tb_nap", "tb_id"}
 
 		newDesc := prometheus.NewDesc(
 			// subsystem: "_" + nap + "_"
