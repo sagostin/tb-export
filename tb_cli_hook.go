@@ -94,7 +94,9 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 		if strings.Contains(l, "local_drop_stats") ||
 			strings.Contains(l, "remote_drop_stats") ||
 			strings.Contains(l, "system_drop_stats") {
-			log.Errorf("Found drop stats, ignoring until handled correctly")
+			if DEBUG {
+				log.Errorf("Found drop stats, ignoring until handled correctly")
+			}
 			insideStats = true
 			continue
 		}
@@ -106,22 +108,31 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 
 		if strings.Contains(l, "struct") {
 			if insideStats {
-				log.Info("Previously inside stats, changing to false, and continuing")
+				if DEBUG {
+					log.Info("Previously inside stats, changing to false, and continuing")
+				}
 				insideStats = false
 			}
 
 			if currentStruct != "" {
-				log.Errorf("Current struct is not empty, assuming it can be overwritten")
+				if DEBUG {
+					log.Errorf("Current struct is not empty, assuming it can be overwritten")
+				}
 			}
 
 			if currentNAP == "" {
-				log.Errorf("Current NAP is empty, cannot process struct")
+				if DEBUG {
+					log.Errorf("Current NAP is empty, cannot process struct")
+				}
 				continue
 			}
 			if rNapStructTitle.MatchString(l) {
-				log.Warnln("Found struct, entering struct mode")
+				if DEBUG {
+					log.Warnln("Found struct, entering struct mode")
+					log.Infof("Current struct is: %s", currentStruct)
+				}
+
 				currentStruct = rNapStructTitle.FindAllStringSubmatch(l, -1)[0][1]
-				log.Infof("Current struct is: %s", currentStruct)
 				// todo reflect onto the struct
 				continue
 			}
@@ -132,12 +143,16 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 			// todo build out the inside struct data
 
 			if insideStats {
-				log.Info("Inside stats, ignoring fields")
+				if DEBUG {
+					log.Info("Inside stats, ignoring fields")
+				}
 				continue
 			}
 
 			if currentNAP == "" {
-				log.Errorf("Current NAP is empty, cannot process struct")
+				if DEBUG {
+					log.Errorf("Current NAP is empty, cannot process struct")
+				}
 				continue
 			}
 
@@ -165,12 +180,16 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 						for j := 0; j < nVal.NumField(); j++ {
 							field := nVal.Type().Field(j)
 							if field.Tag.Get("json") == fieldName {
-								log.Infof("Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
+								if DEBUG {
+									log.Infof("Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
+								}
 
 								if field.Type.Kind() == reflect.Int {
 									fieldValueInt, err := strconv.Atoi(fieldValue)
 									if err != nil {
-										log.Errorf("Failed to convert string to int: %s", err)
+										if DEBUG {
+											log.Errorf("Failed to convert string to int: %s", err)
+										}
 										continue
 									}
 									nVal.Field(j).SetInt(int64(fieldValueInt))
@@ -181,7 +200,9 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 								} else if field.Type.Kind() == reflect.Bool {
 									fieldValueBool, err := strconv.ParseBool(fieldValue)
 									if err != nil {
-										log.Errorf("Failed to convert string to bool: %s", err)
+										if DEBUG {
+											log.Errorf("Failed to convert string to bool: %s", err)
+										}
 										continue
 									}
 									nVal.Field(j).SetBool(fieldValueBool)
@@ -189,16 +210,22 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 								} else if field.Type.Kind() == reflect.Float64 {
 									fieldValueFloat, err := strconv.ParseFloat(fieldValue, 64)
 									if err != nil {
-										log.Errorf("Failed to convert string to float64: %s", err)
+										if DEBUG {
+											log.Errorf("Failed to convert string to float64: %s", err)
+										}
 										continue
 									}
 									nVal.Field(j).SetFloat(fieldValueFloat)
 									break
 								} else if field.Type.Kind() == reflect.Struct {
-									log.Errorf("Found unknown type: %s", field.Type.Kind())
+									if DEBUG {
+										log.Errorf("Found unknown type: %s", field.Type.Kind())
+									}
 									continue
 								} else {
-									log.Errorf("Found unknown type: %s", field.Type.Kind())
+									if DEBUG {
+										log.Errorf("Found unknown type: %s", field.Type.Kind())
+									}
 									continue
 								}
 
@@ -210,7 +237,9 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 						continue
 					}
 
-					log.Infof("12 - Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
+					if DEBUG {
+						log.Infof("12 - Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
+					}
 				}
 			}
 
@@ -224,7 +253,9 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 			if !ok {
 				napStatuses[napName] = &NapStatus{}
 			} else {
-				log.Errorf("NAP already exists, skipping")
+				if DEBUG {
+					log.Errorf("NAP already exists, skipping")
+				}
 			}
 			currentNAP = napName
 			continue
@@ -232,19 +263,25 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 		} else if rNapValueNorm.MatchString(l) {
 			// if normal values match, and it *was* in struct mode, remove struct mode and resume.
 			if currentNAP == "" {
-				log.Errorf("Current NAP is empty, cannot process struct")
+				if DEBUG {
+					log.Errorf("Current NAP is empty, cannot process struct")
+				}
 				continue
 			}
 
 			if currentStruct != "" {
-				log.Warn("Found normal value, but was in struct mode, exiting struct mode")
+				if DEBUG {
+					log.Warn("Found normal value, but was in struct mode, exiting struct mode")
+				}
 				currentStruct = ""
 			}
 
 			fieldName := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][1]
 			fieldValue := rNapValueNorm.FindAllStringSubmatch(l, -1)[0][2]
 
-			log.Infof("Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
+			if DEBUG {
+				log.Infof("Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
+			}
 
 			nVal := reflect.ValueOf(napStatuses[currentNAP]).Elem()
 
@@ -255,7 +292,9 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 					if field.Type.Kind() == reflect.Int {
 						fieldValueInt, err := strconv.Atoi(fieldValue)
 						if err != nil {
-							log.Errorf("Failed to convert string to int: %s", err)
+							if DEBUG {
+								log.Errorf("Failed to convert string to int: %s", err)
+							}
 							continue
 						}
 						nVal.Field(i).SetInt(int64(fieldValueInt))
@@ -266,7 +305,9 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 					} else if field.Type.Kind() == reflect.Bool {
 						fieldValueBool, err := strconv.ParseBool(fieldValue)
 						if err != nil {
-							log.Errorf("Failed to convert string to bool: %s", err)
+							if DEBUG {
+								log.Errorf("Failed to convert string to bool: %s", err)
+							}
 							continue
 						}
 						nVal.Field(i).SetBool(fieldValueBool)
@@ -274,20 +315,28 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 					} else if field.Type.Kind() == reflect.Float64 {
 						fieldValueFloat, err := strconv.ParseFloat(fieldValue, 64)
 						if err != nil {
-							log.Errorf("Failed to convert string to float64: %s", err)
+							if DEBUG {
+								log.Errorf("Failed to convert string to float64: %s", err)
+							}
 							continue
 						}
 						nVal.Field(i).SetFloat(fieldValueFloat)
 						break
 					} else if field.Type.Kind() == reflect.Struct {
-						log.Errorf("Found unknown type: %s", field.Type.Kind())
+						if DEBUG {
+							log.Errorf("Found unknown type: %s", field.Type.Kind())
+						}
 						continue
 					} else {
-						log.Errorf("Found unknown type: %s", field.Type.Kind())
+						if DEBUG {
+							log.Errorf("Found unknown type: %s", field.Type.Kind())
+						}
 						continue
 					}
 
-					log.Infof("11 - Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
+					if DEBUG {
+						log.Infof("11 - Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
+					}
 					nVal.Field(i).Set(reflect.ValueOf(fieldValue))
 					break
 				}

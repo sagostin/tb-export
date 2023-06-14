@@ -23,7 +23,10 @@ var (
 	tbConfig      = flag.String("tb.config", "", "TelcoBridges config")
 	tbIdentifier  = flag.String("tb.identifier", "", "TelcoBridges identifier")
 	tbGateway     = flag.String("tb.gateway", "", "TelcoBridges gateway ID")
+	debug         = flag.Bool("debug", false, "TelcoBridges gateway ID")
 )
+
+const DEBUG = false
 
 func init() {
 	prometheus.MustRegister(version.NewCollector("tb_exporter"))
