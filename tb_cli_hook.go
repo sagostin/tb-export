@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	log "github.com/sirupsen/logrus"
+	"os"
 	"os/exec"
 	"reflect"
 	"regexp"
@@ -22,8 +23,8 @@ func (cli *TbCliStatus) runStatusCmd() ([]byte, error) {
 
 	if osDetect == "linux" {
 		log.Info("Running on Linux machine... continuing")
-	} else {
-		log.Fatal("This exporter is only supported on linux, please run on a linux machine")
+	} else if !DEBUG {
+		log.Fatal("This exporter is only supported on Linux, please run on a Linux machine. We love Linus Torvalds!")
 	}
 
 	var cmd *exec.Cmd
@@ -45,15 +46,23 @@ const (
 func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 	cli.CommandPath = "/nap"
 
-	out, err := cli.runStatusCmd()
-	if err != nil {
-		return nil, err
-	}
+	var out string
 
-	/*out, err := os.ReadFile("./out_test.txt")
-	if err != nil {
-		return nil, err
-	}*/
+	var err error
+
+	if !DEBUG {
+		outT, err := cli.runStatusCmd()
+		if err != nil {
+			return nil, err
+		}
+		out = string(outT)
+	} else {
+		outT, err := os.ReadFile("./out_test.txt")
+		if err != nil {
+			return nil, err
+		}
+		out = string(outT)
+	}
 
 	// check empty data??
 	if len(out) <= 0 {
@@ -88,23 +97,82 @@ func GetStatusNAP(cli TbCliStatus) (map[string]*NapStatus, error) {
 	var insideStats bool
 
 	// keep track of the previous line processed, ignore if it was blank, as well as keep the line number??
-	lines := strings.Split(string(out), "\n")
+	lines := strings.Split(out, "\n")
 	for _, l := range lines {
 
 		if strings.Contains(l, "local_drop_stats") ||
 			strings.Contains(l, "remote_drop_stats") ||
 			strings.Contains(l, "system_drop_stats") {
 			if DEBUG {
-				log.Errorf("Found drop stats, ignoring until handled correctly")
+				log.Warnf("Found drop stats, ignoring until handled correctly")
 			}
+
+			currentStruct = rNapStructTitle.FindAllStringSubmatch(l, -1)[0][1]
+
+			vVal := reflect.ValueOf(napStatuses[currentNAP]).Elem()
+
+			for i := 0; i < vVal.NumField(); i++ {
+				field := vVal.Type().Field(i)
+				if field.Tag.Get("json") == currentStruct {
+
+					if field.Type.Kind() == reflect.Map {
+						// get the map values, and append to the map, as each line is actually a different statistic
+						// so we don't want to overwrite the map, but append to it
+						vVal.Field(i).Set(reflect.MakeMap(vVal.Field(i).Type()))
+						break
+					} else {
+						if DEBUG {
+							log.Errorf("Found unknown type: %s", field.Type.Kind())
+						}
+						continue
+					}
+				}
+			}
+
 			insideStats = true
+
 			continue
+		} else if insideStats && rNapValueStruct.MatchString(l) {
+			// match stats line
+			fields := rNapValueStruct.FindAllStringSubmatch(l, -1)
+
+			fieldName := fields[0][1]
+			fieldValue := fields[0][2]
+
+			if DEBUG {
+				log.Infof("Found field in stats: %s with value: %s", fieldName, fieldValue)
+			}
+
+			vVal := reflect.ValueOf(napStatuses[currentNAP]).Elem()
+
+			for i := 0; i < vVal.NumField(); i++ {
+				field := vVal.Type().Field(i)
+				if field.Tag.Get("json") == currentStruct {
+
+					if field.Type.Kind() == reflect.Map {
+						// get the map values, and append to the map, as each line is actually a different statistic
+						// so we don't want to overwrite the map, but append to it
+						atoi, err := strconv.Atoi(fieldValue)
+						if err != nil {
+							return nil, err
+						}
+						key := reflect.ValueOf(fieldName)
+						value := reflect.ValueOf(atoi)
+						vVal.Field(i).SetMapIndex(key, value) // append to the map
+						break
+					} else {
+						if DEBUG {
+							log.Errorf("Found unknown type: %s", field.Type.Kind())
+						}
+						continue
+					}
+
+					if DEBUG {
+						log.Infof("12 - Found field: %s with value: %s, NAP: %s", fieldName, fieldValue, currentNAP)
+					}
+				}
+			}
 		}
-
-		//log.Warnf(l)
-
-		// if the line contains "struct" we should be able to assume that we are now starting a struct within the status
-		// for a nap, we will need to build and reflect onto that nap based on the provided lines
 
 		if strings.Contains(l, "struct") {
 			if insideStats {
@@ -391,50 +459,47 @@ type NapStatus struct {
 	InstOutgoingCallCntAnswered          int                         `json:"inst_outgoing_call_cnt_answered"`
 	InstIncomingEmergencyCallRateHighest int                         `json:"inst_incoming_emergency_call_rate_highest"`
 	UniqueId                             int                         `json:"unique_id"`
-	SystemDropStats                      struct {
-	} `json:"system_drop_stats"`
-	LocalDropStats struct {
-	} `json:"local_drop_stats"`
-	RemoteDropStats struct {
-	} `json:"remote_drop_stats"`
-	MosStruct                            MosStruct              `json:"mos_struct"`
-	SipSharedUsagePercent                int                    `json:"sip_shared_usage_percent"`
-	InstIncomingCallRateAnsweredHighest  int                    `json:"inst_incoming_call_rate_answered_highest"`
-	InstIncomingCallCnt                  int                    `json:"inst_incoming_call_cnt"`
-	TotalOutgoingFileRecordings          int                    `json:"total_outgoing_file_recordings"`
-	InstOutgoingCallRateAnsweredHighest  int                    `json:"inst_outgoing_call_rate_answered_highest"`
-	InstIncomingCallRate                 int                    `json:"inst_incoming_call_rate"`
-	InstIncomingCallCntInProgress        int                    `json:"inst_incoming_call_cnt_in_progress"`
-	AvailabilityPercent                  int                    `json:"availability_percent"`
-	InstIncomingFileRecordings           int                    `json:"inst_incoming_file_recordings"`
-	InstOutgoingCallRateAccepted         int                    `json:"inst_outgoing_call_rate_accepted"`
-	FirewallBlocked                      bool                   `json:"firewall_blocked"`
-	CallCongestionPeriodDroppedCalls     int                    `json:"call_congestion_period_dropped_calls"`
-	RegistrationStruct                   RegistrationStruct     `json:"registration_struct"`
-	NetworkQualityStruct                 NetworkQualityStruct   `json:"network_quality_struct"`
-	AsrStatsOutgoingStruct               AsrStatsOutgoingStruct `json:"asr_stats_outgoing_struct"`
-	InstOutgoingCallRateHighest          int                    `json:"inst_outgoing_call_rate_highest"`
-	InstIncomingEmergencyCallRate        int                    `json:"inst_incoming_emergency_call_rate"`
-	LowDelayRelaySharedUsagePercent      int                    `json:"low_delay_relay_shared_usage_percent"`
-	TotalOutgoingInterceptions           int                    `json:"total_outgoing_interceptions"`
-	InstOutgoingFilePlaybacks            int                    `json:"inst_outgoing_file_playbacks"`
-	InstIncomingInterceptions            int                    `json:"inst_incoming_interceptions"`
-	CallCongestion                       bool                   `json:"call_congestion"`
-	MipsSharedUsagePercent               int                    `json:"mips_shared_usage_percent"`
-	SharedUsagePercent                   int                    `json:"shared_usage_percent"`
-	UnavailableCnt                       int                    `json:"unavailable_cnt"`
-	InstOutgoingFileRecordings           int                    `json:"inst_outgoing_file_recordings"`
-	InstOutgoingCallRateAnswered         int                    `json:"inst_outgoing_call_rate_answered"`
-	InstOutgoingCallCntTerminating       int                    `json:"inst_outgoing_call_cnt_terminating"`
-	InstIncomingEmergencyCallCntAnswered int                    `json:"inst_incoming_emergency_call_cnt_answered"`
-	RtpStatisticsStruct                  RtpStatisticsStruct    `json:"rtp_statistics_struct"`
-	ResetRtpStats                        string                 `json:"reset_rtp_stats"`
-	TotalOutgoingFilePlaybacks           int                    `json:"total_outgoing_file_playbacks"`
-	InstOutgoingInterceptions            int                    `json:"inst_outgoing_interceptions"`
-	TotalIncomingFileRecordings          int                    `json:"total_incoming_file_recordings"`
-	InstOutgoingCallRateAcceptedHighest  int                    `json:"inst_outgoing_call_rate_accepted_highest"`
-	InstIncomingCallRateAcceptedHighest  int                    `json:"inst_incoming_call_rate_accepted_highest"`
-	InstIncomingCallRateHighest          int                    `json:"inst_incoming_call_rate_highest"`
+	SystemDropStats                      map[string]int              `json:"system_drop_stats"`
+	LocalDropStats                       map[string]int              `json:"local_drop_stats"`
+	RemoteDropStats                      map[string]int              `json:"remote_drop_stats"`
+	MosStruct                            MosStruct                   `json:"mos_struct"`
+	SipSharedUsagePercent                int                         `json:"sip_shared_usage_percent"`
+	InstIncomingCallRateAnsweredHighest  int                         `json:"inst_incoming_call_rate_answered_highest"`
+	InstIncomingCallCnt                  int                         `json:"inst_incoming_call_cnt"`
+	TotalOutgoingFileRecordings          int                         `json:"total_outgoing_file_recordings"`
+	InstOutgoingCallRateAnsweredHighest  int                         `json:"inst_outgoing_call_rate_answered_highest"`
+	InstIncomingCallRate                 int                         `json:"inst_incoming_call_rate"`
+	InstIncomingCallCntInProgress        int                         `json:"inst_incoming_call_cnt_in_progress"`
+	AvailabilityPercent                  int                         `json:"availability_percent"`
+	InstIncomingFileRecordings           int                         `json:"inst_incoming_file_recordings"`
+	InstOutgoingCallRateAccepted         int                         `json:"inst_outgoing_call_rate_accepted"`
+	FirewallBlocked                      bool                        `json:"firewall_blocked"`
+	CallCongestionPeriodDroppedCalls     int                         `json:"call_congestion_period_dropped_calls"`
+	RegistrationStruct                   RegistrationStruct          `json:"registration_struct"`
+	NetworkQualityStruct                 NetworkQualityStruct        `json:"network_quality_struct"`
+	AsrStatsOutgoingStruct               AsrStatsOutgoingStruct      `json:"asr_stats_outgoing_struct"`
+	InstOutgoingCallRateHighest          int                         `json:"inst_outgoing_call_rate_highest"`
+	InstIncomingEmergencyCallRate        int                         `json:"inst_incoming_emergency_call_rate"`
+	LowDelayRelaySharedUsagePercent      int                         `json:"low_delay_relay_shared_usage_percent"`
+	TotalOutgoingInterceptions           int                         `json:"total_outgoing_interceptions"`
+	InstOutgoingFilePlaybacks            int                         `json:"inst_outgoing_file_playbacks"`
+	InstIncomingInterceptions            int                         `json:"inst_incoming_interceptions"`
+	CallCongestion                       bool                        `json:"call_congestion"`
+	MipsSharedUsagePercent               int                         `json:"mips_shared_usage_percent"`
+	SharedUsagePercent                   int                         `json:"shared_usage_percent"`
+	UnavailableCnt                       int                         `json:"unavailable_cnt"`
+	InstOutgoingFileRecordings           int                         `json:"inst_outgoing_file_recordings"`
+	InstOutgoingCallRateAnswered         int                         `json:"inst_outgoing_call_rate_answered"`
+	InstOutgoingCallCntTerminating       int                         `json:"inst_outgoing_call_cnt_terminating"`
+	InstIncomingEmergencyCallCntAnswered int                         `json:"inst_incoming_emergency_call_cnt_answered"`
+	RtpStatisticsStruct                  RtpStatisticsStruct         `json:"rtp_statistics_struct"`
+	ResetRtpStats                        string                      `json:"reset_rtp_stats"`
+	TotalOutgoingFilePlaybacks           int                         `json:"total_outgoing_file_playbacks"`
+	InstOutgoingInterceptions            int                         `json:"inst_outgoing_interceptions"`
+	TotalIncomingFileRecordings          int                         `json:"total_incoming_file_recordings"`
+	InstOutgoingCallRateAcceptedHighest  int                         `json:"inst_outgoing_call_rate_accepted_highest"`
+	InstIncomingCallRateAcceptedHighest  int                         `json:"inst_incoming_call_rate_accepted_highest"`
+	InstIncomingCallRateHighest          int                         `json:"inst_incoming_call_rate_highest"`
 }
 
 type MosStruct struct {

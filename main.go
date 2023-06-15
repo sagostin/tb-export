@@ -26,7 +26,7 @@ var (
 	debug         = flag.Bool("debug", false, "TelcoBridges gateway ID")
 )
 
-const DEBUG = false
+var DEBUG bool
 
 func init() {
 	prometheus.MustRegister(version.NewCollector("tb_exporter"))
@@ -35,7 +35,6 @@ func init() {
 func main() {
 	flag.Parse()
 
-	// check if all required flags are set
 	if *tbIdentifier == "" {
 		fmt.Fprintln(os.Stderr, "Please provide a identifier for TelcoBridges API")
 		os.Exit(1)
@@ -46,25 +45,11 @@ func main() {
 		os.Exit(0)
 	}
 
-	/*if *tbApiUrl == "" {
-		fmt.Fprintln(os.Stderr, "Please provide a address for TelcoBridges API")
-		os.Exit(1)
-	}
+	DEBUG = false
 
-	if *tbUsername == "" {
-		fmt.Fprintln(os.Stderr, "Please provide a username for TelcoBridges API")
-		os.Exit(1)
+	if *debug {
+		DEBUG = *debug
 	}
-
-	if *tbPassword == "" {
-		fmt.Fprintln(os.Stderr, "Please provide a password for TelcoBridges API")
-		os.Exit(1)
-	}
-
-	if *tbConfig == "" {
-		fmt.Fprintln(os.Stderr, "Please provide a config for TelcoBridges API")
-		os.Exit(1)
-	}*/
 
 	if *tbGateway == "" {
 		fmt.Fprintln(os.Stderr, "Please provide the gateway ID for local TelcoBridges communication")

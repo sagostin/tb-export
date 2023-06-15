@@ -19,7 +19,7 @@ func (e *Exporter) BuildDescriptions() {
 	// build map for descriptions that is limitless >:) (not really)
 	var metricDesc = make(map[string]*prometheus.Desc, 0)
 
-	tempNapStatusFormat := sbc.NapStatus{}
+	tempNapStatusFormat := NapStatus{}
 
 	valFirst := reflect.ValueOf(tempNapStatusFormat)
 
@@ -38,6 +38,7 @@ func (e *Exporter) BuildDescriptions() {
 			}
 			continue
 		} else {
+			//log.Warn("Not a struct: ", nF1)
 			napFields = append(napFields, nF1)
 		}
 	}
@@ -52,7 +53,7 @@ func (e *Exporter) BuildDescriptions() {
 
 		// todo recursively go through each nap field and go into the individual structs and get those fields as well
 
-		labels := []string{"tb_nap", "tb_id"}
+		labels := []string{"tb_nap", "tb_id", "tb_stat"}
 
 		newDesc := prometheus.NewDesc(
 			// subsystem: "_" + nap + "_"
@@ -130,12 +131,20 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 					//e.desc[n+"-"+fieldName]
 					cCh <- prometheus.NewMetricWithTimestamp(time.Now(),
 						prometheus.MustNewConstMetric(e.desc[fieldName],
-							prometheus.GaugeValue, float64(nVal.Field(i).Int()), nap, e.id))
+							prometheus.GaugeValue, float64(nVal.Field(i).Int()), nap, e.id, ""))
 				} else if field.Type.Kind() == reflect.Float64 {
 					//log.Infoln("NAP field: ", nap, fieldName)
 					cCh <- prometheus.NewMetricWithTimestamp(time.Now(),
 						prometheus.MustNewConstMetric(e.desc[fieldName],
-							prometheus.GaugeValue, nVal.Field(i).Float(), nap, e.id))
+							prometheus.GaugeValue, nVal.Field(i).Float(), nap, e.id, ""))
+				} else if field.Type.Kind() == reflect.Map {
+					//log.Infoln("NAP field: ", nap, fieldName)
+					iter := nVal.Field(i).Interface().(map[string]int)
+					for k, v := range iter {
+						cCh <- prometheus.NewMetricWithTimestamp(time.Now(),
+							prometheus.MustNewConstMetric(e.desc[fieldName],
+								prometheus.GaugeValue, float64(v), nap, e.id, k))
+					}
 				} else if field.Type.Kind() == reflect.Struct {
 					//log.Infoln("NAP field: ", nap, fieldName)
 					//log.Warnf("Struct: %s", fieldName)
@@ -146,11 +155,11 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 						if field2.Type.Kind() == reflect.Int {
 							cCh <- prometheus.NewMetricWithTimestamp(time.Now(),
 								prometheus.MustNewConstMetric(e.desc[fieldName+"__"+fieldName2],
-									prometheus.GaugeValue, float64(vVal.Field(i2).Int()), nap, e.id))
+									prometheus.GaugeValue, float64(vVal.Field(i2).Int()), nap, e.id, ""))
 						} else if field2.Type.Kind() == reflect.Float64 {
 							cCh <- prometheus.NewMetricWithTimestamp(time.Now(),
 								prometheus.MustNewConstMetric(e.desc[fieldName+"__"+fieldName2],
-									prometheus.GaugeValue, vVal.Field(i2).Float(), nap, e.id))
+									prometheus.GaugeValue, vVal.Field(i2).Float(), nap, e.id, ""))
 						} else {
 							//log.Infoln("NAP field: ", nap, fieldName, fieldName2)
 							continue
